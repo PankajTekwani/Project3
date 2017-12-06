@@ -13,11 +13,15 @@ g++ -o cord cordinator.cpp -lpthread
 #include <pthread.h>
 #include <string.h>
 #include <time.h>
+#include <netdb.h>
+#include <vector>
 #include <iostream>
+
+using namespace std;
 
 #define MAXRECORDS 10000
 #define MAXCLIENTS 200
-#define BACKSERVERS 3
+#define BACKSERVERS 1
 #define MAXLOGS 10000
 #define FILENAME "Records.txt"
 #define MAXTRANSACTIONS 1000000
@@ -30,17 +34,14 @@ g++ -o cord cordinator.cpp -lpthread
 #define ERR 1
 
 
-//Server Account Records
-struct acc_record
-{
-	int id;
-	float bal;
-};
+pthread_cond_t cv;
+vector<int> acc;
 
-struct accounts
+struct server_details
 {
-	struct acc_record account[10000];
-	int total_accounts;
+	int sock;
+	int port;
+	struct log_table* log;
 };
 
 struct command
@@ -60,6 +61,7 @@ struct reply
 struct log_table
 {
 	struct command logs[MAXLOGS];
+	//queue <struct command> logs;
 	int index;
 	pthread_mutex_t log_lock;
 };
@@ -105,27 +107,27 @@ void * perform_cli_tsn(void *arg)
 			log->index = log->index + 1;
 			break;
 		}
-		log->logs[i].type = cmd.type;
-		log->logs[i].bal = cmd.bal;
-		log->logs[i].id = cmd.id;
-		log->logs[i].tsn_id = i+1;
-		log->index = log->index + 1;
-		
+		pthread_mutex_lock(&log->log_lock);
+			log->logs[i].type = cmd.type;
+			log->logs[i].bal = cmd.bal;
+			log->logs[i].id = cmd.id;
+			log->logs[i].tsn_id = i+1;
+			log->index = log->index + 1;
+		pthread_cond_signal(&cv);
+		pthread_mutex_unlock( &log->log_lock);
 		response.type = OK;
 		response.val = 1234;
 		byte_written = write(td->csock,&response,sizeof(response));
 		i++;
 	}
 
-	printLogs(td->log);
-
 	//All Transactions from a Client are performed, so closing the connection.
 	close(td->csock);
-	//printRecords(td->acc);
+	printLogs(td->log);
 }
 
-/*
-int connectToServer(char ip[], int port)
+
+int connectToServer(char *ip, int port)
 {
 
 	struct sockaddr_in serv_addr;
@@ -142,7 +144,7 @@ int connectToServer(char ip[], int port)
 	bcopy((char *)server->h_addr,(char *)&serv_addr.sin_addr.s_addr,server->h_length);
 
 	//Connecct to Server
-	if(connect(cli_sock,(struct sockaddr *)&serv_addr,sizeof(serv_addr))<0)
+	if(connect(sock,(struct sockaddr *)&serv_addr,sizeof(serv_addr))<0)
 	{
 		printf("\nError in Client Connection");
 		return -1;
@@ -150,8 +152,75 @@ int connectToServer(char ip[], int port)
 
 	return sock;
 }
-*/
 
+int generate_acc_no()
+{
+	int acc_no,i,f;
+
+	do
+	{
+		acc_no = rand() % MAXRECORDS;
+		f=0;
+		for(i=0;i < acc.size(); i++)
+		{
+			if(acc[i] == acc_no)
+			{
+				f=1;
+				break;
+			}
+		}
+	}while(f);
+	acc.push_back(acc_no);
+	return acc_no;
+
+}
+
+void * backend_server(void *arg)
+{
+	int i;
+	int tmp;
+	int byte_written,byte_read;
+	int index;
+	struct reply response;
+	struct log_table* log;
+	struct command cmd;
+	struct server_details *serv = (struct server_details *)arg;
+	for(i=0;i<BACKSERVERS;i++)
+	{
+		tmp = connectToServer("127.0.0.1",serv[i].port);
+		if(tmp == -1)
+		{
+			printf("\nUnable to Connect to Backend Server %d",i+1);
+			pthread_exit(NULL);
+		}
+		serv[i].sock = tmp;
+	}
+
+	log = serv[0].log;
+	index = 0;
+	do
+	{
+		pthread_mutex_lock( &log->log_lock);
+		if(index == log->index)
+		{
+			pthread_cond_wait( &cv, &log->log_lock );
+		}
+		for(i=0;i<BACKSERVERS;i++)
+		{
+			cmd = log->logs[index];
+			if(cmd.type == CREATE)
+			{	//CREATE
+				cmd.id = generate_acc_no();
+			}
+			byte_written = write(serv[i].sock,&cmd,sizeof(cmd));
+			byte_read = read(serv[i].sock,&response,sizeof(response));
+			printf("\n%d %d",response.type,response.val);
+		}
+		index++;
+		pthread_mutex_unlock( &log->log_lock);
+	}while(1);
+	
+}
 
 /*
 Main fuction to start the Server.
@@ -161,28 +230,26 @@ int main(int argc,char *argv[])
 	struct thrd_data td[MAX_CLIENTS];
 	struct log_table log;
 	int lsock,csock[MAX_CLIENTS];
-	int ssock[BACKSERVERS];
+	struct server_details server[BACKSERVERS];
 	socklen_t clilen;
 	struct sockaddr_in server_addr,cli_addr;
 	int port,i,no_of_clients,byte_written;
 	log.index = 0;
 	pthread_t thrd;
-	pthread_t interest_thrd;
+	pthread_t server_thrd;
 	setbuf(stdout,NULL);
 
-/*
+	pthread_mutex_init(&log.log_lock,NULL);
+	pthread_cond_init(&cv,NULL);
+
 	//Connect to backend Servers
 	for(i=0;i<BACKSERVERS;i++)
 	{
-		tmp = connectToServer("127.0.0.1",atoi(argv[i+2]));
-		if(tmp == -1)
-		{
-			printf("\nUnable to Connect to Backend Server %d",i+1);
-			exit(1);
-		}
-		ssock[i] = tmp;
+		server[i].port = atoi(argv[i+2]);
+		server[i].log = &log;
 	}
-*/
+	pthread_create(&server_thrd,NULL,backend_server,(void *)&server[0]);
+
 	//Create Listen Socket for Clients
 	if((lsock = socket(AF_INET,SOCK_STREAM,0)) == -1)
 	{

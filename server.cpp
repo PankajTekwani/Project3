@@ -94,30 +94,13 @@ struct acc_record* readServerFile(char file[])
 }
 */
 
-int check(struct accounts *acc, int no)
-{
-	int i;
-	for(i=0;i < acc->total_accounts; i++)
-	{
-		if(acc->account[i].id == no)
-		{
-			return 1;
-		}
-	}
-	return 0;
-}
 
 /*
 Return account no to be assigned.
 */
 
-int create_acc(struct accounts *acc,int bal)
+int create_acc(struct accounts *acc,int acc_no,int bal)
 {
-	int acc_no;
-	do
-	{
-		acc_no = rand() % MAXRECORDS;
-	}while(check(acc,acc_no));
 	acc->account[acc->total_accounts].id = acc_no;
 	acc->total_accounts = acc->total_accounts + 1;
 	return acc_no;
@@ -200,7 +183,7 @@ int main(int argc,char *argv[])
 
 		if(cmd.type == CREATE)
 		{	//CREATE
-			status = create_acc(&acc,cmd.bal);
+			status = create_acc(&acc,cmd.id,cmd.bal);
 			if(status < 1)
 			{
 				printf("\nUnable to create Account!!");
