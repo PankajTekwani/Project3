@@ -3,7 +3,7 @@ g++ -o client client.cpp
 ./client Transactions.txt localhost 12340
 */
 
-#include <fstream>
+#include <iostream>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -13,6 +13,7 @@ g++ -o client client.cpp
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <string>
 #include <time.h>
 
 #define MAXRECORDS 10000
@@ -25,13 +26,14 @@ g++ -o client client.cpp
 #define ERR 1
 #define FILENAME "Transactions.txt"
 
+using namespace std;
 
 struct command
 {
 	int tsn_id;
 	int type;
 	int id;
-	int bal;	
+	int bal;
 };
 
 struct reply
@@ -39,93 +41,6 @@ struct reply
 	int type;
 	int val;
 };
-
-/*
-This function reads the transaction file and prepares the array of structures to pass it to the server in order to perform transactions
-*/
-struct command* getRecords(char file[], int *totalTransactions)
-{
-	FILE *client;
-	char type[10];
-	int id,i;
-	int amt;
-	struct command *cmd = (struct command *)malloc(MAXRECORDS * sizeof(struct command));
-
-	client = fopen(file,"r");
-	if(client == NULL)
-	{
-		printf("unable to open file\n");
-		return 0;
-	}
-	
-	i=0;
-	while ( !feof(client) )
-	{
-		fscanf(client,"%s ",type);
-		if(!strcmp(type,"CREATE"))
-		{
-			cmd[i].type = CREATE;
-			fscanf(client,"%d\n",&amt);
-			cmd[i].bal = amt;
-			cmd[i].id = -1;
-		}
-		else if(!strcmp(type,"UPDATE"))
-		{
-			cmd[i].type = UPDATE;
-			fscanf(client,"%d %d\n",&id,&amt);
-			cmd[i].bal = amt;
-			cmd[i].id = id;
-		}
-		else if(!strcmp(type,"QUERY"))
-		{
-			cmd[i].type = QUERY;
-			fscanf(client,"%d\n",&id);
-			cmd[i].bal = -1;
-			cmd[i].id = id;
-		}
-		else if(!strcmp(type,"QUIT"))
-		{
-			cmd[i].type = QUIT;
-			cmd[i].bal = -1;
-			cmd[i].id = -1;
-		}
-		cmd[i].tsn_id = i;
-		//printf("%d %d %c %d\n",ts,id,type,amt);
-		i++;
-	}
-	*totalTransactions = i;
-	//printf("%s :Total Transaction :%d,i = %d ",__FUNCTION__,*totalTransactions,i);
-	fclose(client);
-	return cmd;
-}
-
-/*
-This function prints the records which the client read from the transaction file
-*/
-void printRecords(struct command *rec, int no_of_tsn)
-{
-	int i;
-	for ( i=0;i<no_of_tsn;i++ )
-	{
-		if(rec[i].type == CREATE)
-		{
-			printf("\nCREATE %d",rec[i].bal);
-		}
-		else if(rec[i].type == UPDATE)
-		{
-			printf("\nUPDATE %d %d",rec[i].id,rec[i].bal);
-		}
-		else if(rec[i].type == QUERY)
-		{
-			printf("\nQUERY %d",rec[i].id);
-		}
-		else if(rec[i].type == QUIT)
-		{
-			printf("\nQUIT");
-		}
-	}
-	printf("\n");
-}
 
 /*
 It prints the message recieved from the server on the client terminal
@@ -142,7 +57,72 @@ void printRecvMsg(struct reply resp)
 	}
 	printf("\n");
 }
+/*
+char str[] ="- This, a sample string.";
+  char * pch;
+  printf ("Splitting string \"%s\" into tokens:\n",str);
+  pch = strtok (str," ,.-");
+  while (pch != NULL)
+  {
+    printf ("%s\n",pch);
+    pch = strtok (NULL, " ,.-");
+  }
+*/
+struct command get_command(string *str)
+{
+	struct command cmd;
+	char s[30];
+	char *pch;
+	int a, b;
 
+	cin.getline(s,30);
+	pch = strtok (s," ");
+	if(pch!=NULL)
+	{
+		*str = string(pch);
+	}
+	pch = strtok (NULL," ");
+	if(pch!=NULL)
+	{
+		a = atoi(pch);
+	}
+	pch = strtok (NULL," ");
+	if(pch!=NULL)
+	{
+		b = atoi(pch);
+	}
+
+	
+	for(int j = 0; j < (*str).length(); j++)
+       		(*str)[j] = toupper((*str)[j]);
+
+	if(!(*str).compare(string("CREATE")))
+	{
+		cmd.type = CREATE;
+		cmd.bal = a;
+		cmd.id = -1;
+	}
+	else if(!(*str).compare(string("UPDATE")))
+	{
+		cmd.type = UPDATE;
+		cmd.bal = b;
+		cmd.id = a;
+	}
+	else if(!(*str).compare(string("QUERY")))
+	{
+		cmd.type = QUERY;
+		cmd.bal = -1;
+		cmd.id = a;
+	}
+	else if(!(*str).compare(string("QUIT")))
+	{
+		cmd.type = QUIT;
+		cmd.bal = -1;
+		cmd.id = -1;
+	}
+	
+	return cmd;	
+}
 
 /*
 Main function to start a client
@@ -151,27 +131,19 @@ int main(int argc,char *argv[])
 {
 	
 	
-	struct command* cmd;
+	//struct command* cmd;
+	struct command cmd;
 	struct reply response;
 	char filename[80];
 	int cli_sock;
 	struct sockaddr_in serv_addr;
 	struct hostent *server;
-	void *msg;
 	int port, totalCmd;
 	int i,byte_read,byte_write = -1;
-
+	string str;
+	int a,b;
 	setbuf(stdout,NULL);
-	strcpy(filename,argv[1]);
-	
-	cmd = getRecords(filename,&totalCmd);
-	if(cmd == NULL)
-	{
-		printf("\nunable to open client file");
-		return -1;
-	}
 
-	printRecords(cmd,totalCmd);	
 
 	//Make Clients
 	cli_sock = socket(AF_INET,SOCK_STREAM,0);
@@ -183,7 +155,7 @@ int main(int argc,char *argv[])
 
 	//Prepare Server Structure to Connect
 	server = gethostbyname(argv[2]);
-	port = atoi(argv[3]);
+	port = atoi(argv[1]);
 	memset(&serv_addr,'0',sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(port);
@@ -197,18 +169,21 @@ int main(int argc,char *argv[])
 	}
 
 	//Send Transactions to SERVER
-	for(i = 0;i < totalCmd; i++)
+	//for(i = 0;i < totalCmd; i++)
+	do
 	{
 
-		byte_write = write(cli_sock, (void *)&cmd[i], sizeof(struct command));
+		cmd = get_command(&str);
+		byte_write = write(cli_sock, (void *)&cmd, sizeof(struct command));
+		cout<<"cmd:"<<cmd.type<<" "<<cmd.id<<" "<<cmd.bal<<endl;
 		byte_read = read(cli_sock,&response,sizeof(response));
 
 		if(byte_read > 0)
 		{
 			//printRecvMsg(response);
-			printf("\n%d %d",response.type,response.val);
+			printf("response:%d %d\n",response.type,response.val);
 		}
-	}
+	}while(str.compare(string("QUIT")));
 
 	close(cli_sock);
 

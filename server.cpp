@@ -49,7 +49,7 @@ struct command
 	int tsn_id;
 	int type;
 	int id;
-	float bal;
+	int bal;
 };
 
 struct reply
@@ -102,6 +102,7 @@ Return account no to be assigned.
 int create_acc(struct accounts *acc,int acc_no,int bal)
 {
 	acc->account[acc->total_accounts].id = acc_no;
+	acc->account[acc->total_accounts].bal = bal;
 	acc->total_accounts = acc->total_accounts + 1;
 	return acc_no;
 }
@@ -191,7 +192,7 @@ int main(int argc,char *argv[])
 			}
 			response.type = OK;
 			response.val = status;
-			printf("\nCreate Status %d",status);
+			printf("\nCreate %d %d %d",cmd.type,status,cmd.bal);
 		}
 		else if(cmd.type == QUERY)
 		{	//QUERY
@@ -203,7 +204,7 @@ int main(int argc,char *argv[])
 			}
 			response.type = OK;
 			response.val = status;
-			printf("\nQuery Status %d",status);
+			printf("\nQuery %d %d %d",cmd.type,cmd.id,status);
 		}
 		else if(cmd.type == UPDATE)
 		{	//UPDATE
@@ -215,7 +216,7 @@ int main(int argc,char *argv[])
 			}
 			response.type = OK;
 			response.val = status;
-			printf("\nUpdate Status %d",status);
+			printf("\nUpdate %d %d %d",cmd.type,cmd.id,status);
 		}
 
 		byte_written = write(csock,&response,sizeof(response));

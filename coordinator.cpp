@@ -101,6 +101,7 @@ void * perform_cli_tsn(void *arg)
 	while(1)
 	{
 		byte_read = read(td->csock, &cmd, sizeof(cmd));
+		//printf("\ncliCMD:%d %d %d",cmd.type,cmd.id,cmd.bal);
 		if(cmd.type == QUIT)
 		{
 			log->logs[i].type = cmd.type;
@@ -113,6 +114,7 @@ void * perform_cli_tsn(void *arg)
 			log->logs[i].id = cmd.id;
 			log->logs[i].tsn_id = i+1;
 			log->index = log->index + 1;
+			//printf("\nLogIndex:%d",log->index);
 		pthread_cond_signal(&cv);
 		pthread_mutex_unlock( &log->log_lock);
 		response.type = OK;
@@ -214,6 +216,7 @@ void * backend_server(void *arg)
 			}
 			byte_written = write(serv[i].sock,&cmd,sizeof(cmd));
 			byte_read = read(serv[i].sock,&response,sizeof(response));
+			printf("\nCmd:%d %d %d",cmd.type,cmd.id,cmd.bal);
 			printf("\n%d %d",response.type,response.val);
 		}
 		index++;
