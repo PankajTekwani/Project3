@@ -71,6 +71,7 @@ struct thrd_data
 {
 	int csock;
 	struct log_table* log;
+	struct server_details *server;
 }thrd_data;
 
 
@@ -84,6 +85,28 @@ void printLogs(struct log_table *log)
 	printf("\n");
 }
 
+int generate_acc_no()
+{
+	int acc_no,i,f;
+
+	do
+	{
+		acc_no = rand() % MAXRECORDS;
+		f=0;
+		for(i=0;i < acc.size(); i++)
+		{
+			if(acc[i] == acc_no)
+			{
+				f=1;
+				break;
+			}
+		}
+	}while(f);
+	acc.push_back(acc_no);
+	return acc_no;
+
+}
+
 /*
 Function to perform all transaction of single client. After accepting the connection from each client the Server creates a thread for the clien connection and assigns this function to it to perform all transaction of that client. 
 */
@@ -93,35 +116,44 @@ void * perform_cli_tsn(void *arg)
 	struct reply response;
 	struct thrd_data *td = (struct thrd_data *)arg;
 	struct log_table* log;
+	struct server_details *server;
 	int i = 0;
 	int byte_written,byte_read;
 	/* Thread Operation*/	
 	log = td->log;
+	server = td->server;
 	i=0;
-	while(1)
+	do
 	{
 		byte_read = read(td->csock, &cmd, sizeof(cmd));
 		//printf("\ncliCMD:%d %d %d",cmd.type,cmd.id,cmd.bal);
-		if(cmd.type == QUIT)
-		{
-			log->logs[i].type = cmd.type;
-			log->index = log->index + 1;
-			break;
-		}
-		pthread_mutex_lock(&log->log_lock);
-			log->logs[i].type = cmd.type;
-			log->logs[i].bal = cmd.bal;
-			log->logs[i].id = cmd.id;
-			log->logs[i].tsn_id = i+1;
-			log->index = log->index + 1;
-			//printf("\nLogIndex:%d",log->index);
+
+/*		pthread_mutex_lock(&log->log_lock);
+		log->logs[i].type = cmd.type;
+		log->logs[i].bal = cmd.bal;
+		log->logs[i].id = cmd.id;
+		log->logs[i].tsn_id = i+1;
+		log->index = log->index + 1;
+		//printf("\nLogIndex:%d",log->index);
 		pthread_cond_signal(&cv);
 		pthread_mutex_unlock( &log->log_lock);
-		response.type = OK;
-		response.val = 1234;
+*/
+		for(i=0;i<BACKSERVERS;i++)
+		{
+			//cmd = log->logs[index];
+			if(cmd.type == CREATE)
+			{	//CREATE
+				cmd.id = generate_acc_no();
+			}
+			byte_written = write(server[i].sock,&cmd,sizeof(cmd));
+			byte_read = read(server[i].sock,&response,sizeof(response));
+			printf("\nCmd->Backend:%d %d %d",cmd.type,cmd.id,cmd.bal);
+			printf("\nResponse:%d %d",response.type,response.val);
+		}
+
 		byte_written = write(td->csock,&response,sizeof(response));
 		i++;
-	}
+	}while(cmd.type != QUIT);
 
 	//All Transactions from a Client are performed, so closing the connection.
 	close(td->csock);
@@ -155,28 +187,7 @@ int connectToServer(char *ip, int port)
 	return sock;
 }
 
-int generate_acc_no()
-{
-	int acc_no,i,f;
-
-	do
-	{
-		acc_no = rand() % MAXRECORDS;
-		f=0;
-		for(i=0;i < acc.size(); i++)
-		{
-			if(acc[i] == acc_no)
-			{
-				f=1;
-				break;
-			}
-		}
-	}while(f);
-	acc.push_back(acc_no);
-	return acc_no;
-
-}
-
+/*
 void * backend_server(void *arg)
 {
 	int i;
@@ -224,6 +235,7 @@ void * backend_server(void *arg)
 	}while(1);
 	
 }
+*/
 
 /*
 Main fuction to start the Server.
@@ -237,6 +249,7 @@ int main(int argc,char *argv[])
 	socklen_t clilen;
 	struct sockaddr_in server_addr,cli_addr;
 	int port,i,no_of_clients,byte_written;
+	int tmp;
 	log.index = 0;
 	pthread_t thrd;
 	pthread_t server_thrd;
@@ -249,9 +262,15 @@ int main(int argc,char *argv[])
 	for(i=0;i<BACKSERVERS;i++)
 	{
 		server[i].port = atoi(argv[i+2]);
-		server[i].log = &log;
+		tmp = connectToServer("127.0.0.1",server[i].port);
+		if(tmp == -1)
+		{
+			printf("\nUnable to Connect to Backend Server %d",i+1);
+			pthread_exit(NULL);
+		}
+		server[i].sock = tmp;
 	}
-	pthread_create(&server_thrd,NULL,backend_server,(void *)&server[0]);
+	//pthread_create(&server_thrd,NULL,backend_server,(void *)&server[0]);
 
 	//Create Listen Socket for Clients
 	if((lsock = socket(AF_INET,SOCK_STREAM,0)) == -1)
@@ -287,6 +306,7 @@ int main(int argc,char *argv[])
 		//Prepare thread data and create New Thread
 		td[no_of_clients].log = &log;
 		td[no_of_clients].csock = csock[no_of_clients];
+		td[no_of_clients].server = server;
 		pthread_create(&thrd,NULL,perform_cli_tsn,(void*)&td[no_of_clients]);
 		no_of_clients = (no_of_clients + 1)%200 ;
 	}while(1);
