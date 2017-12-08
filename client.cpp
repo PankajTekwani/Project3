@@ -45,29 +45,52 @@ struct reply
 /*
 It prints the message recieved from the server on the client terminal
 */
-void printRecvMsg(struct reply resp)
+void printRecvMsg(struct command cmd,struct reply resp)
 {
-	if(resp.type == OK)
+	if(cmd.type == CREATE)
 	{
-		printf("\nOK %d",resp.val);
+		if(resp.type == OK)
+		{
+			printf("\nOK %d",resp.val);
+		}
+		else
+		{
+			printf("\nERR");
+		}
+	}
+	else if(cmd.type == UPDATE)
+	{
+		if(resp.type == OK)
+		{
+			printf("\nOK %d",resp.val);
+		}
+		else
+		{
+			printf("\nERR Account %d does not exist.",cmd.id);
+		}
+	}
+	else if(cmd.type == QUERY)
+	{
+		if(resp.type == OK)
+		{
+			printf("\nOK %d",resp.val);
+		}
+		else
+		{
+			printf("\nERR Account %d does not exist.",cmd.id);
+		}
+	}
+	else if(cmd.type == QUIT)
+	{
+		printf("\nOK");
 	}
 	else
 	{
-		printf("\nERR %d",resp.val);
+		printf("\nAbort");
 	}
 	printf("\n");
 }
-/*
-char str[] ="- This, a sample string.";
-  char * pch;
-  printf ("Splitting string \"%s\" into tokens:\n",str);
-  pch = strtok (str," ,.-");
-  while (pch != NULL)
-  {
-    printf ("%s\n",pch);
-    pch = strtok (NULL, " ,.-");
-  }
-*/
+
 struct command get_command(string *str)
 {
 	struct command cmd;
@@ -175,13 +198,13 @@ int main(int argc,char *argv[])
 
 		cmd = get_command(&str);
 		byte_write = write(cli_sock, (void *)&cmd, sizeof(struct command));
-		cout<<"cmd:"<<cmd.type<<" "<<cmd.id<<" "<<cmd.bal<<endl;
+		//cout<<"cmd:"<<cmd.type<<" "<<cmd.id<<" "<<cmd.bal<<endl;
 		byte_read = read(cli_sock,&response,sizeof(response));
 
 		if(byte_read > 0)
 		{
-			//printRecvMsg(response);
-			printf("response:%d %d\n",response.type,response.val);
+			printRecvMsg(cmd,response);
+			//printf("response:%d %d\n",response.type,response.val);
 		}
 	}while(str.compare(string("QUIT")));
 

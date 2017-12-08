@@ -21,7 +21,7 @@ using namespace std;
 
 #define MAXRECORDS 10000
 #define MAXCLIENTS 200
-#define BACKSERVERS 1
+#define BACKSERVERS 2
 #define MAXLOGS 10000
 #define FILENAME "Records.txt"
 #define MAXTRANSACTIONS 1000000
@@ -107,6 +107,64 @@ int generate_acc_no()
 
 }
 
+int check_reply(struct reply *resp)
+{
+	int i;
+	for(i=0;i<BACKSERVERS;i++)
+	{
+		if(resp[i].type!=OK)
+		{
+			return ERR;
+		}
+	}
+	return OK;
+}
+
+struct reply twoPhaseCommit(struct command cmd,struct server_details *server)
+{
+	int i,flag;
+	int byte_written,byte_read;
+	struct reply resp[BACKSERVERS];
+	if(cmd.type == CREATE)
+	{	//CREATE
+		cmd.id = generate_acc_no();
+	}
+	//Send Request to Backend Servers	
+	for(i=0;i<BACKSERVERS;i++)
+	{
+		byte_written = write(server[i].sock,&cmd,sizeof(cmd));
+		//printf("\nCmd->Backend:%d %d %d",cmd.type,cmd.id,cmd.bal);
+	}
+	//Waiting for reply of First Phase
+	for(i=0;i<BACKSERVERS;i++)
+	{
+		byte_read = read(server[i].sock,&resp[i],sizeof(resp[0]));
+		//printf("\nResponse:%d %d",resp[i].type,resp[i].val);
+	}
+
+	flag = check_reply(resp);
+	for(i=0;i<BACKSERVERS;i++)
+	{
+		byte_written = write(server[i].sock,&flag,sizeof(flag));
+	}
+
+	if(flag == OK)
+	{
+		for(i=0;i<BACKSERVERS;i++)
+		{
+			byte_read = read(server[i].sock,&resp[i],sizeof(resp[0]));
+		}
+		flag = check_reply(resp);
+		if(flag == OK)
+		{
+			return resp[0];
+		}
+	}
+
+	resp[0].type = ERR;
+	return resp[0];	
+}
+
 /*
 Function to perform all transaction of single client. After accepting the connection from each client the Server creates a thread for the clien connection and assigns this function to it to perform all transaction of that client. 
 */
@@ -118,6 +176,7 @@ void * perform_cli_tsn(void *arg)
 	struct log_table* log;
 	struct server_details *server;
 	int i = 0;
+	int flag;
 	int byte_written,byte_read;
 	/* Thread Operation*/	
 	log = td->log;
@@ -126,38 +185,15 @@ void * perform_cli_tsn(void *arg)
 	do
 	{
 		byte_read = read(td->csock, &cmd, sizeof(cmd));
-		//printf("\ncliCMD:%d %d %d",cmd.type,cmd.id,cmd.bal);
-
-/*		pthread_mutex_lock(&log->log_lock);
-		log->logs[i].type = cmd.type;
-		log->logs[i].bal = cmd.bal;
-		log->logs[i].id = cmd.id;
-		log->logs[i].tsn_id = i+1;
-		log->index = log->index + 1;
-		//printf("\nLogIndex:%d",log->index);
-		pthread_cond_signal(&cv);
-		pthread_mutex_unlock( &log->log_lock);
-*/
-		for(i=0;i<BACKSERVERS;i++)
-		{
-			//cmd = log->logs[index];
-			if(cmd.type == CREATE)
-			{	//CREATE
-				cmd.id = generate_acc_no();
-			}
-			byte_written = write(server[i].sock,&cmd,sizeof(cmd));
-			byte_read = read(server[i].sock,&response,sizeof(response));
-			printf("\nCmd->Backend:%d %d %d",cmd.type,cmd.id,cmd.bal);
-			printf("\nResponse:%d %d",response.type,response.val);
-		}
-
+		response = twoPhaseCommit(cmd,server);
+		
 		byte_written = write(td->csock,&response,sizeof(response));
 		i++;
 	}while(cmd.type != QUIT);
 
 	//All Transactions from a Client are performed, so closing the connection.
 	close(td->csock);
-	printLogs(td->log);
+	//printLogs(td->log);
 }
 
 

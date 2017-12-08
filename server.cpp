@@ -105,57 +105,83 @@ int update_acc(int id, int bal)
 	return -1;
 }
 
+int wait_for_commit(int csock,struct command cmd)
+{
+	int flag,byte_written,byte_read;
+	struct reply response;
+	if(cmd.type == CREATE || cmd.type == QUERY || cmd.type == UPDATE)
+	{
+		response.type = OK;
+	}
+	else
+	{
+		response.type = ERR;
+	}
+	byte_written = write(csock,&response,sizeof(response));
+	
+	byte_read = read(csock,&flag,sizeof(flag));
+	return flag;
+}
 
 void*  perform_tsn(void *arg)
 {
 	int csock;
+	int flag;
 	struct command cmd;
 	struct reply response;
 	int byte_read,byte_written,status;
 	struct thrd_data *td = (struct thrd_data *)arg;
 	csock = td->csock;
 	do
-	{	
+	{
 		byte_read = read(csock,&cmd,sizeof(cmd));
-
-		if(cmd.type == CREATE)
-		{	//CREATE
-			status = create_acc(cmd.id,cmd.bal);
-			if(status < 1)
-			{
-				printf("\nUnable to create Account!!");
-				response.type = ERR;
+		flag = wait_for_commit(csock,cmd);
+		if(flag == OK)
+		{
+			if(cmd.type == CREATE)
+			{	//CREATE
+				status = create_acc(cmd.id,cmd.bal);
+				if(status < 1)
+				{
+					printf("\nUnable to create Account!!");
+					response.type = ERR;
+				}
+				response.type = OK;
+				response.val = status;
+				printf("\nCreate %d %d %d",cmd.type,status,cmd.bal);
 			}
-			response.type = OK;
-			response.val = status;
-			printf("\nCreate %d %d %d",cmd.type,status,cmd.bal);
-		}
-		else if(cmd.type == QUERY)
-		{	//QUERY
-			status = query_acc(cmd.id);
-			if(status == -1)
-			{
-				printf("\nAccount doesn't exist!!");
-				response.type = ERR;
+			else if(cmd.type == QUERY)
+			{	//QUERY
+				status = query_acc(cmd.id);
+				if(status == -1)
+				{
+					printf("\nAccount doesn't exist!!");
+					response.type = ERR;
+				}
+				else
+				{
+					response.type = OK;
+					response.val = status;
+				}
+				printf("\nQuery %d %d %d",cmd.type,cmd.id,status);
 			}
-			response.type = OK;
-			response.val = status;
-			printf("\nQuery %d %d %d",cmd.type,cmd.id,status);
-		}
-		else if(cmd.type == UPDATE)
-		{	//UPDATE
-			status = update_acc(cmd.id,cmd.bal);
-			if(status == -1)
-			{
-				printf("\nUnable to Update!!");
-				response.type = ERR;
+			else if(cmd.type == UPDATE)
+			{	//UPDATE
+				status = update_acc(cmd.id,cmd.bal);
+				if(status == -1)
+				{
+					printf("\nUnable to Update!!");
+					response.type = ERR;
+				}
+				else
+				{
+					response.type = OK;
+					response.val = status;
+				}
+				printf("\nUpdate %d %d %d",cmd.type,cmd.id,status);
 			}
-			response.type = OK;
-			response.val = status;
-			printf("\nUpdate %d %d %d",cmd.type,cmd.id,status);
+			byte_written = write(csock,&response,sizeof(response));
 		}
-
-		byte_written = write(csock,&response,sizeof(response));
 	}while(cmd.type!=QUIT);
 
 	close(csock);
