@@ -41,6 +41,7 @@ struct server_details
 {
 	int sock;
 	int port;
+	int working;
 	struct log_table* log;
 };
 
@@ -107,62 +108,102 @@ int generate_acc_no()
 
 }
 
-int check_reply(struct reply *resp)
+struct reply check_reply(struct reply *resp, struct server_details *server)
 {
 	int i;
+	struct reply r;
+	r.type = ERR;
 	for(i=0;i<BACKSERVERS;i++)
 	{
-		if(resp[i].type!=OK)
+		if(server[i].working == 1)
 		{
-			return ERR;
+			r = resp[i];
+			if(resp[i].type!=OK)
+			{	
+				break;
+			}
 		}
 	}
-	return OK;
+	return r;
 }
 
 struct reply twoPhaseCommit(struct command cmd,struct server_details *server)
 {
-	int i,flag;
+	int i;
 	int byte_written,byte_read;
+	struct timeval timeout; 
 	struct reply resp[BACKSERVERS];
+	struct reply r;
 	if(cmd.type == CREATE)
 	{	//CREATE
 		cmd.id = generate_acc_no();
 	}
+    
+/* 	timeout.tv_sec  = 0;
+   	timeout.tv_usec = 1;
+
+	for(i=0;i<BACKSERVERS;i++)
+	{
+		if (setsockopt (server[i].sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(struct timeval)) < 0)
+        {
+            perror("setsockopt failed\n");
+        }
+	}
+*/
 	//Send Request to Backend Servers	
 	for(i=0;i<BACKSERVERS;i++)
 	{
-		byte_written = write(server[i].sock,&cmd,sizeof(cmd));
+		if(server[i].working == 1)
+		{
+			byte_written = write(server[i].sock,&cmd,sizeof(cmd));
+		}
 		//printf("\nCmd->Backend:%d %d %d",cmd.type,cmd.id,cmd.bal);
 	}
+
+	timeout.tv_sec  = 0;
+   	timeout.tv_usec = 1;
+	for(i=0;i<BACKSERVERS;i++)
+	{
+		if (setsockopt (server[i].sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(struct timeval)) < 0)
+        {
+            perror("setsockopt failed\n");
+        }
+	}
+
 	//Waiting for reply of First Phase
 	for(i=0;i<BACKSERVERS;i++)
 	{
-		byte_read = read(server[i].sock,&resp[i],sizeof(resp[0]));
-		//printf("\nResponse:%d %d",resp[i].type,resp[i].val);
-	}
-
-	flag = check_reply(resp);
-	for(i=0;i<BACKSERVERS;i++)
-	{
-		byte_written = write(server[i].sock,&flag,sizeof(flag));
-	}
-
-	if(flag == OK)
-	{
-		for(i=0;i<BACKSERVERS;i++)
+		if(server[i].working == 1)
 		{
 			byte_read = read(server[i].sock,&resp[i],sizeof(resp[0]));
 		}
-		flag = check_reply(resp);
-		if(flag == OK)
+		if(byte_read == 0)
 		{
-			return resp[0];
+			printf("\nServer %d is not responding",i+1);
+			server[i].working = 0;
+		}
+		//printf("\nResponse:%d %d",resp[i].type,resp[i].val);
+	}
+
+	r = check_reply(resp,server);
+	for(i=0;i<BACKSERVERS;i++)
+	{
+		if(server[i].working == 1)
+		{
+			byte_written = write(server[i].sock,&(r.type),sizeof(int));
 		}
 	}
 
-	resp[0].type = ERR;
-	return resp[0];	
+	for(i=0;i<BACKSERVERS;i++)
+	{
+		if(server[i].working == 1)
+		{
+			byte_read = read(server[i].sock,&resp[i],sizeof(resp[0]));
+		}
+	}
+	r = check_reply(resp, server);
+	printf("\nR(type,val,wrk):(%d,%d)",r.type,r.val);
+	return r;
 }
 
 /*
@@ -305,6 +346,7 @@ int main(int argc,char *argv[])
 			pthread_exit(NULL);
 		}
 		server[i].sock = tmp;
+		server[i].working = 1;
 	}
 	//pthread_create(&server_thrd,NULL,backend_server,(void *)&server[0]);
 

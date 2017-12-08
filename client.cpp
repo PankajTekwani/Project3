@@ -51,42 +51,42 @@ void printRecvMsg(struct command cmd,struct reply resp)
 	{
 		if(resp.type == OK)
 		{
-			printf("\nOK %d",resp.val);
+			printf("OK %d",resp.val);
 		}
 		else
 		{
-			printf("\nERR");
+			printf("ERR");
 		}
 	}
 	else if(cmd.type == UPDATE)
 	{
 		if(resp.type == OK)
 		{
-			printf("\nOK %d",resp.val);
+			printf("OK %d",resp.val);
 		}
 		else
 		{
-			printf("\nERR Account %d does not exist.",cmd.id);
+			printf("ERR Account %d does not exist.",cmd.id);
 		}
 	}
 	else if(cmd.type == QUERY)
 	{
 		if(resp.type == OK)
 		{
-			printf("\nOK %d",resp.val);
+			printf("OK %d",resp.val);
 		}
 		else
 		{
-			printf("\nERR Account %d does not exist.",cmd.id);
+			printf("ERR Account %d does not exist.",cmd.id);
 		}
 	}
 	else if(cmd.type == QUIT)
 	{
-		printf("\nOK");
+		printf("OK");
 	}
 	else
 	{
-		printf("\nAbort");
+		printf("Abort");
 	}
 	printf("\n");
 }

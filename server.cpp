@@ -200,6 +200,7 @@ int main(int argc,char *argv[])
 	int port,byte_written,byte_read;
 	int status,no_of_clients;
 	pthread_t thrd;
+	int reuse = 1;
 	struct thrd_data td[MAX_CLIENTS];
 
 	setbuf(stdout,NULL);
@@ -210,6 +211,12 @@ int main(int argc,char *argv[])
 		return -1;
 	}
 
+	// enable the socket to reuse the address
+    if (setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) 
+	{
+		perror("\nfailed allowing server socket to reuse address");
+	}
+     
 	port = atoi(argv[1]);
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = INADDR_ANY;
