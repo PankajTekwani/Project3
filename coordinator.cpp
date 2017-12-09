@@ -138,19 +138,9 @@ struct reply twoPhaseCommit(struct command cmd,struct server_details *server)
 	{	//CREATE
 		cmd.id = generate_acc_no();
 	}
-    
-/* 	timeout.tv_sec  = 0;
-   	timeout.tv_usec = 1;
 
-	for(i=0;i<BACKSERVERS;i++)
-	{
-		if (setsockopt (server[i].sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(struct timeval)) < 0)
-        {
-            perror("setsockopt failed\n");
-        }
-	}
-*/
-	//Send Request to Backend Servers	
+	//Send Request to Backend Servers
+	printf("\nSending Command to Servers");
 	for(i=0;i<BACKSERVERS;i++)
 	{
 		if(server[i].working == 1)
@@ -176,16 +166,35 @@ struct reply twoPhaseCommit(struct command cmd,struct server_details *server)
 		if(server[i].working == 1)
 		{
 			byte_read = read(server[i].sock,&resp[i],sizeof(resp[0]));
-		}
-		if(byte_read == 0)
-		{
-			printf("\nServer %d is not responding",i+1);
-			server[i].working = 0;
+			if(byte_read>0)
+			{
+				if(resp[i].type == OK)
+				{
+					printf("\nRecieved READY to COMMIT from Server%d",i+1);
+				}
+				else if(resp[i].type == ERR)
+				{
+					printf("\nRecieved ABORT from Server%d",i+1);
+				}
+			}
+			else if(byte_read == 0)
+			{
+				printf("\nServer %d is not responding",i+1);
+				server[i].working = 0;
+			}
 		}
 		//printf("\nResponse:%d %d",resp[i].type,resp[i].val);
 	}
 
 	r = check_reply(resp,server);
+	if(r.type == OK)
+	{
+		printf("\nSending Commit to Servers");
+	}
+	else if(r.type == ERR)
+	{
+		printf("\nSending ABORT to Servers");
+	}
 	for(i=0;i<BACKSERVERS;i++)
 	{
 		if(server[i].working == 1)
@@ -202,7 +211,7 @@ struct reply twoPhaseCommit(struct command cmd,struct server_details *server)
 		}
 	}
 	r = check_reply(resp, server);
-	printf("\nR(type,val,wrk):(%d,%d)",r.type,r.val);
+	//printf("\nR(type,val,wrk):(%d,%d)",r.type,r.val);
 	return r;
 }
 
@@ -226,11 +235,16 @@ void * perform_cli_tsn(void *arg)
 	do
 	{
 		byte_read = read(td->csock, &cmd, sizeof(cmd));
+		if(cmd.type == QUIT)
+		{
+			byte_written = write(td->csock,&response,sizeof(response));
+			break;
+		}
 		response = twoPhaseCommit(cmd,server);
 		
 		byte_written = write(td->csock,&response,sizeof(response));
 		i++;
-	}while(cmd.type != QUIT);
+	}while(1);
 
 	//All Transactions from a Client are performed, so closing the connection.
 	close(td->csock);
@@ -264,55 +278,6 @@ int connectToServer(char *ip, int port)
 	return sock;
 }
 
-/*
-void * backend_server(void *arg)
-{
-	int i;
-	int tmp;
-	int byte_written,byte_read;
-	int index;
-	struct reply response;
-	struct log_table* log;
-	struct command cmd;
-	struct server_details *serv = (struct server_details *)arg;
-	for(i=0;i<BACKSERVERS;i++)
-	{
-		tmp = connectToServer("127.0.0.1",serv[i].port);
-		if(tmp == -1)
-		{
-			printf("\nUnable to Connect to Backend Server %d",i+1);
-			pthread_exit(NULL);
-		}
-		serv[i].sock = tmp;
-	}
-
-	log = serv[0].log;
-	index = 0;
-	do
-	{
-		pthread_mutex_lock( &log->log_lock);
-		if(index == log->index)
-		{
-			pthread_cond_wait( &cv, &log->log_lock );
-		}
-		for(i=0;i<BACKSERVERS;i++)
-		{
-			cmd = log->logs[index];
-			if(cmd.type == CREATE)
-			{	//CREATE
-				cmd.id = generate_acc_no();
-			}
-			byte_written = write(serv[i].sock,&cmd,sizeof(cmd));
-			byte_read = read(serv[i].sock,&response,sizeof(response));
-			printf("\nCmd:%d %d %d",cmd.type,cmd.id,cmd.bal);
-			printf("\n%d %d",response.type,response.val);
-		}
-		index++;
-		pthread_mutex_unlock( &log->log_lock);
-	}while(1);
-	
-}
-*/
 
 /*
 Main fuction to start the Server.
@@ -332,8 +297,8 @@ int main(int argc,char *argv[])
 	pthread_t server_thrd;
 	setbuf(stdout,NULL);
 
-	pthread_mutex_init(&log.log_lock,NULL);
-	pthread_cond_init(&cv,NULL);
+//	pthread_mutex_init(&log.log_lock,NULL);
+//	pthread_cond_init(&cv,NULL);
 
 	//Connect to backend Servers
 	for(i=0;i<BACKSERVERS;i++)

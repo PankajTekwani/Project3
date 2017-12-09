@@ -198,6 +198,11 @@ int main(int argc,char *argv[])
 
 		cmd = get_command(&str);
 		byte_write = write(cli_sock, (void *)&cmd, sizeof(struct command));
+		if(!str.compare(string("QUIT")))
+		{
+			printf("OK\n");
+			break;
+		}
 		//cout<<"cmd:"<<cmd.type<<" "<<cmd.id<<" "<<cmd.bal<<endl;
 		byte_read = read(cli_sock,&response,sizeof(response));
 
@@ -206,7 +211,7 @@ int main(int argc,char *argv[])
 			printRecvMsg(cmd,response);
 			//printf("response:%d %d\n",response.type,response.val);
 		}
-	}while(str.compare(string("QUIT")));
+	}while(1);
 
 	close(cli_sock);
 
