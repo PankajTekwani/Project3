@@ -34,7 +34,7 @@ using namespace std;
 #define ERR 1
 
 
-pthread_cond_t cv;
+pthread_mutex_t lock;
 vector<int> acc;
 
 struct server_details
@@ -42,7 +42,7 @@ struct server_details
 	int sock;
 	int port;
 	int working;
-	struct log_table* log;
+	//struct log_table* log;
 };
 
 struct command
@@ -58,7 +58,7 @@ struct reply
 	int type;
 	int val;
 };
-
+/*
 struct log_table
 {
 	struct command logs[MAXLOGS];
@@ -66,16 +66,16 @@ struct log_table
 	int index;
 	pthread_mutex_t log_lock;
 };
-
+*/
 //Thread Data
 struct thrd_data
 {
 	int csock;
-	struct log_table* log;
+	//struct log_table* log;
 	struct server_details *server;
 }thrd_data;
 
-
+/*
 void printLogs(struct log_table *log)
 {
 	int i;
@@ -85,6 +85,7 @@ void printLogs(struct log_table *log)
 	}
 	printf("\n");
 }
+*/
 
 int generate_acc_no()
 {
@@ -223,13 +224,13 @@ void * perform_cli_tsn(void *arg)
 	struct command cmd;
 	struct reply response;
 	struct thrd_data *td = (struct thrd_data *)arg;
-	struct log_table* log;
+	//struct log_table* log;
 	struct server_details *server;
 	int i = 0;
 	int flag;
 	int byte_written,byte_read;
 	/* Thread Operation*/	
-	log = td->log;
+	//log = td->log;
 	server = td->server;
 	i=0;
 	do
@@ -240,8 +241,9 @@ void * perform_cli_tsn(void *arg)
 			byte_written = write(td->csock,&response,sizeof(response));
 			break;
 		}
+		pthread_mutex_lock(&lock);
 		response = twoPhaseCommit(cmd,server);
-		
+		pthread_mutex_unlock(&lock);
 		byte_written = write(td->csock,&response,sizeof(response));
 		i++;
 	}while(1);
@@ -285,21 +287,21 @@ Main fuction to start the Server.
 int main(int argc,char *argv[])
 {
 	struct thrd_data td[MAX_CLIENTS];
-	struct log_table log;
+	//struct log_table log;
 	int lsock,csock[MAX_CLIENTS];
 	struct server_details server[BACKSERVERS];
 	socklen_t clilen;
 	struct sockaddr_in server_addr,cli_addr;
 	int port,i,no_of_clients,byte_written;
 	int tmp;
-	log.index = 0;
+	//log.index = 0;
 	pthread_t thrd;
 	pthread_t server_thrd;
 	setbuf(stdout,NULL);
 
 //	pthread_mutex_init(&log.log_lock,NULL);
 //	pthread_cond_init(&cv,NULL);
-
+	pthread_mutex_init(&lock,NULL);
 	//Connect to backend Servers
 	for(i=0;i<BACKSERVERS;i++)
 	{
@@ -347,7 +349,7 @@ int main(int argc,char *argv[])
 		}
 		
 		//Prepare thread data and create New Thread
-		td[no_of_clients].log = &log;
+		//td[no_of_clients].log = &log;
 		td[no_of_clients].csock = csock[no_of_clients];
 		td[no_of_clients].server = server;
 		pthread_create(&thrd,NULL,perform_cli_tsn,(void*)&td[no_of_clients]);
