@@ -69,11 +69,15 @@ Return account no to be assigned.
 int create_acc(int acc_no,int bal)
 {
 	struct acc_record customer;
-	customer.id = acc_no;
-	customer.bal = bal;
-	pthread_mutex_init(&customer.lock,NULL);
-	acc.push_back(customer);
-	return acc_no;
+	if(bal>0)
+	{
+		customer.id = acc_no;
+		customer.bal = bal;
+		pthread_mutex_init(&customer.lock,NULL);
+		acc.push_back(customer);
+		return acc_no;
+	}
+	return -1;
 }
 
 int query_acc(int id)
@@ -89,17 +93,33 @@ int query_acc(int id)
 	return -1;
 }
 
-int update_acc(int id, int bal)
+int acc_exists(int id)
 {
 	int i;
 	for(i=0;i<acc.size();i++)
 	{
 		if(acc[i].id == id)
 		{
-			pthread_mutex_lock(&acc[i].lock);
-			acc[i].bal = bal;
-			pthread_mutex_unlock(&acc[i].lock);
-			return bal;
+			return i;
+		}
+	}
+	return -1;
+}
+
+int update_acc(int id, int bal)
+{
+	int i;
+	if(bal > 0)
+	{
+		for(i=0;i<acc.size();i++)
+		{
+			if(acc[i].id == id)
+			{
+				pthread_mutex_lock(&acc[i].lock);
+				acc[i].bal = bal;
+				pthread_mutex_unlock(&acc[i].lock);
+				return bal;
+			}
 		}
 	}
 	return -1;
@@ -109,15 +129,33 @@ int wait_for_commit(int csock,struct command cmd)
 {
 	int flag,byte_written,byte_read;
 	struct reply response;
-	if(cmd.type == CREATE || cmd.type == QUERY || cmd.type == UPDATE)
+	if(cmd.type == CREATE && cmd.bal<0)
 	{
-		response.type = OK;
-		printf("\nSent Ready to Commit");
+		response.type = ERR;
+		response.val = -1;
+		printf("\nSent NO to Commit");
 	}
-	else
+	else if(cmd.type == UPDATE && cmd.bal<0)
+	{
+		response.type = ERR;
+		response.val = -1;
+		printf("\nSent NO to Commit");
+	}
+	else if(cmd.type == QUERY && acc_exists(cmd.id) == -1)
 	{
 		response.type = ERR;
 		printf("\nSent NO to Commit");
+	}
+	else if(cmd.type == UPDATE && acc_exists(cmd.id) == -1)
+	{
+		response.type = ERR;
+		response.val = cmd.id;
+		printf("\nSent NO to Commit");
+	}
+	else
+	{
+		response.type = OK;
+		printf("\nSent Ready to Commit");
 	}
 	byte_written = write(csock,&response,sizeof(response));
 	
@@ -144,14 +182,18 @@ void*  perform_tsn(void *arg)
 			if(cmd.type == CREATE)
 			{	//CREATE
 				status = create_acc(cmd.id,cmd.bal);
-				if(status < 1)
+				if(status < 0)
 				{
 					printf("\nUnable to create Account!!");
 					response.type = ERR;
+					response.val = -1;
 				}
-				response.type = OK;
-				response.val = status;
-				printf("\nCommit Create: %d %d",status,cmd.bal);
+				else
+				{
+					response.type = OK;
+					response.val = status;
+					printf("\nCommit Create: %d %d",status,cmd.bal);
+				}
 			}
 			else if(cmd.type == QUERY)
 			{	//QUERY
@@ -175,6 +217,14 @@ void*  perform_tsn(void *arg)
 				{
 					printf("\nUnable to Update!!");
 					response.type = ERR;
+					if(cmd.bal<0)
+					{
+						response.val = -1;
+					}
+					else
+					{
+						response.val = cmd.id;
+					}
 				}
 				else
 				{

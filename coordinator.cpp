@@ -104,7 +104,7 @@ int generate_acc_no()
 			}
 		}
 	}while(f);
-	acc.push_back(acc_no);
+	//acc.push_back(acc_no);
 	return acc_no;
 
 }
@@ -191,6 +191,10 @@ struct reply twoPhaseCommit(struct command cmd,struct server_details *server)
 	if(r.type == OK)
 	{
 		printf("\nSending Commit to Servers");
+		if(cmd.type == CREATE)
+		{
+			acc.push_back(cmd.id);
+		}
 	}
 	else if(r.type == ERR)
 	{

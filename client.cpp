@@ -55,7 +55,7 @@ void printRecvMsg(struct command cmd,struct reply resp)
 		}
 		else
 		{
-			printf("ERR");
+			printf("ERR creating Account");
 		}
 	}
 	else if(cmd.type == UPDATE)
@@ -66,7 +66,14 @@ void printRecvMsg(struct command cmd,struct reply resp)
 		}
 		else
 		{
-			printf("ERR Account %d does not exist.",cmd.id);
+			if(resp.val == -1)
+			{
+				printf("Insufficient Balance");
+			}
+			else
+			{
+				printf("ERR Account %d does not exist.",cmd.id);
+			}
 		}
 	}
 	else if(cmd.type == QUERY)
