@@ -21,7 +21,7 @@ using namespace std;
 
 #define MAXRECORDS 10000
 #define MAXCLIENTS 200
-#define BACKSERVERS 2
+#define BACKSERVERS 3
 #define MAXLOGS 10000
 #define FILENAME "Records.txt"
 #define MAXTRANSACTIONS 1000000

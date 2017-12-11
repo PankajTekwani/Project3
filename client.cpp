@@ -104,52 +104,59 @@ struct command get_command(string *str)
 	char s[30];
 	char *pch;
 	int a, b;
-
-	cin.getline(s,30);
-	pch = strtok (s," ");
-	if(pch!=NULL)
+	do
 	{
-		*str = string(pch);
-	}
-	pch = strtok (NULL," ");
-	if(pch!=NULL)
-	{
-		a = atoi(pch);
-	}
-	pch = strtok (NULL," ");
-	if(pch!=NULL)
-	{
-		b = atoi(pch);
-	}
+		cin.getline(s,30);
+		pch = strtok (s," ");
+		if(pch!=NULL)
+		{
+			*str = string(pch);
+		}
+		pch = strtok (NULL," ");
+		if(pch!=NULL)
+		{
+			a = atoi(pch);
+		}
+		pch = strtok (NULL," ");
+		if(pch!=NULL)
+		{
+			b = atoi(pch);
+		}
 
 	
-	for(int j = 0; j < (*str).length(); j++)
-       		(*str)[j] = toupper((*str)[j]);
+		for(int j = 0; j < (*str).length(); j++)
+		   		(*str)[j] = toupper((*str)[j]);
 
-	if(!(*str).compare(string("CREATE")))
-	{
-		cmd.type = CREATE;
-		cmd.bal = a;
-		cmd.id = -1;
-	}
-	else if(!(*str).compare(string("UPDATE")))
-	{
-		cmd.type = UPDATE;
-		cmd.bal = b;
-		cmd.id = a;
-	}
-	else if(!(*str).compare(string("QUERY")))
-	{
-		cmd.type = QUERY;
-		cmd.bal = -1;
-		cmd.id = a;
-	}
-	else if(!(*str).compare(string("QUIT")))
-	{
-		cmd.type = QUIT;
-		cmd.bal = -1;
-		cmd.id = -1;
-	}
+		if(!(*str).compare(string("CREATE")))
+		{
+			cmd.type = CREATE;
+			cmd.bal = a;
+			cmd.id = -1;
+			break;
+		}
+		else if(!(*str).compare(string("UPDATE")))
+		{
+			cmd.type = UPDATE;
+			cmd.bal = b;
+			cmd.id = a;
+			break;
+		}
+		else if(!(*str).compare(string("QUERY")))
+		{
+			cmd.type = QUERY;
+			cmd.bal = -1;
+			cmd.id = a;
+			break;
+		}
+		else if(!(*str).compare(string("QUIT")))
+		{
+			cmd.type = QUIT;
+			cmd.bal = -1;
+			cmd.id = -1;
+			break;
+		}
+	printf("Wrong Command, Please Re-enter:");
+	}while(1);
 	
 	return cmd;	
 }
