@@ -133,29 +133,29 @@ int wait_for_commit(int csock,struct command cmd)
 	{
 		response.type = ERR;
 		response.val = -1;
-		printf("\nSent NO to Commit");
+		printf("\nABORT");
 	}
 	else if(cmd.type == UPDATE && cmd.bal<0)
 	{
 		response.type = ERR;
 		response.val = -1;
-		printf("\nSent NO to Commit");
+		printf("\nABORT");
 	}
 	else if(cmd.type == QUERY && acc_exists(cmd.id) == -1)
 	{
 		response.type = ERR;
-		printf("\nSent NO to Commit");
+		printf("\nABORT");
 	}
 	else if(cmd.type == UPDATE && acc_exists(cmd.id) == -1)
 	{
 		response.type = ERR;
 		response.val = cmd.id;
-		printf("\nSent NO to Commit");
+		printf("\nABORT");
 	}
 	else
 	{
 		response.type = OK;
-		printf("\nSent Ready to Commit");
+		printf("\nReady to Commit");
 	}
 	byte_written = write(csock,&response,sizeof(response));
 	
@@ -175,7 +175,7 @@ void*  perform_tsn(void *arg)
 	do
 	{
 		byte_read = read(csock,&cmd,sizeof(cmd));
-		printf("\nReceived Cmd from Coordinator");
+		printf("\nINIT State");
 		flag = wait_for_commit(csock,cmd);
 		if(flag == OK)
 		{
@@ -192,7 +192,7 @@ void*  perform_tsn(void *arg)
 				{
 					response.type = OK;
 					response.val = status;
-					printf("\nCommit Create: %d %d",status,cmd.bal);
+					printf("\nCommit",status,cmd.bal);
 				}
 			}
 			else if(cmd.type == QUERY)
@@ -208,7 +208,7 @@ void*  perform_tsn(void *arg)
 					response.type = OK;
 					response.val = status;
 				}
-				printf("\nCommit Query: %d %d",cmd.id,status);
+				printf("\nCommit",cmd.id,status);
 			}
 			else if(cmd.type == UPDATE)
 			{	//UPDATE
@@ -231,7 +231,7 @@ void*  perform_tsn(void *arg)
 					response.type = OK;
 					response.val = status;
 				}
-				printf("\nnCommit Update: %d %d",cmd.id,status);
+				printf("\nnCommit",cmd.id,status);
 			}
 			byte_written = write(csock,&response,sizeof(response));
 		}

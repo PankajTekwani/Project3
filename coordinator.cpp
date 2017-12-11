@@ -141,7 +141,7 @@ struct reply twoPhaseCommit(struct command cmd,struct server_details *server)
 	}
 
 	//Send Request to Backend Servers
-	printf("\nSending Command to Servers");
+	printf("\nINIT: Sending Command to Servers");
 	for(i=0;i<BACKSERVERS;i++)
 	{
 		if(server[i].working == 1)
@@ -150,7 +150,7 @@ struct reply twoPhaseCommit(struct command cmd,struct server_details *server)
 		}
 		//printf("\nCmd->Backend:%d %d %d",cmd.type,cmd.id,cmd.bal);
 	}
-
+	printf("\nWait: Waiting for Responses from Server");
 	timeout.tv_sec  = 0;
    	timeout.tv_usec = 1;
 	for(i=0;i<BACKSERVERS;i++)
@@ -171,7 +171,7 @@ struct reply twoPhaseCommit(struct command cmd,struct server_details *server)
 			{
 				if(resp[i].type == OK)
 				{
-					printf("\nRecieved READY to COMMIT from Server%d",i+1);
+					printf("\nRecieved READY from Server%d",i+1);
 				}
 				else if(resp[i].type == ERR)
 				{
